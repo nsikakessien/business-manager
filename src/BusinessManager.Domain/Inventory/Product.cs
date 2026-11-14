@@ -2,10 +2,14 @@ namespace BusinessManager.Domain.Inventory;
 
 public sealed class Product
 {
-    public Guid Id { get; }
-    public string Sku { get; }
-    public string Name { get; }
-    public decimal SellingPrice { get; }
+    public Guid Id { get; private set; }
+    public string Sku { get; private set; } = string.Empty;
+    public string Name { get; private set; } = string.Empty;
+    public decimal SellingPrice { get; private set; }
+
+    private Product()
+    {
+    }
 
     public Product(string sku, string name, decimal sellingPrice)
     {
