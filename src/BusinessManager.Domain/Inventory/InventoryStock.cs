@@ -1,15 +1,27 @@
-using System.Collections.ObjectModel;
+using BusinessManager.Domain.Common;
 
 namespace BusinessManager.Domain.Inventory;
 
+/// <summary>
+/// Quantity on hand for one product.
+/// </summary>
+/// <remarks>
+/// <see cref="Movements"/> holds the movements recorded through this instance.
+/// When the stock is loaded from storage the full history is not loaded (it
+/// can grow without bound); query the movement history separately instead.
+/// </remarks>
 public sealed class InventoryStock
 {
     private readonly List<StockMovement> _movements = new();
 
-    public Guid ProductId { get; }
+    public Guid ProductId { get; private set; }
     public int QuantityOnHand { get; private set; }
 
-    public ReadOnlyCollection<StockMovement> Movements { get; }
+    public IReadOnlyList<StockMovement> Movements => _movements.AsReadOnly();
+
+    private InventoryStock()
+    {
+    }
 
     public InventoryStock(Guid productId)
     {
@@ -21,10 +33,9 @@ public sealed class InventoryStock
         }
 
         ProductId = productId;
-        Movements = _movements.AsReadOnly();
     }
 
-    public void Receive(int quantity, string reason)
+    public StockMovement Receive(int quantity, string reason)
     {
         if (quantity <= 0)
         {
@@ -33,13 +44,14 @@ public sealed class InventoryStock
                 "Received quantity must be greater than zero.");
         }
 
-        RecordMovement(
+        return RecordMovement(
             StockMovementType.Receipt,
             quantity,
-            reason);
+            reason,
+            referenceId: null);
     }
 
-    public void Adjust(int quantityChange, string reason)
+    public StockMovement Adjust(int quantityChange, string reason)
     {
         if (quantityChange == 0)
         {
@@ -48,16 +60,67 @@ public sealed class InventoryStock
                 "A stock adjustment cannot be zero.");
         }
 
-        RecordMovement(
+        return RecordMovement(
             StockMovementType.Adjustment,
             quantityChange,
-            reason);
+            reason,
+            referenceId: null);
     }
 
-    private void RecordMovement(
+    public StockMovement RemoveForSale(int quantity, Guid saleId, string reason)
+    {
+        if (quantity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(quantity),
+                "Sold quantity must be greater than zero.");
+        }
+
+        if (quantity > QuantityOnHand)
+        {
+            throw new DomainException(
+                $"Insufficient stock: {QuantityOnHand:N0} on hand, " +
+                $"{quantity:N0} requested.");
+        }
+
+        return RecordMovement(
+            StockMovementType.Sale,
+            -quantity,
+            reason,
+            RequireReference(saleId));
+    }
+
+    public StockMovement ReturnFromVoidedSale(int quantity, Guid saleId, string reason)
+    {
+        if (quantity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(quantity),
+                "Returned quantity must be greater than zero.");
+        }
+
+        return RecordMovement(
+            StockMovementType.SaleVoid,
+            quantity,
+            reason,
+            RequireReference(saleId));
+    }
+
+    private static Guid RequireReference(Guid saleId)
+    {
+        if (saleId == Guid.Empty)
+        {
+            throw new ArgumentException("A sale ID is required.", nameof(saleId));
+        }
+
+        return saleId;
+    }
+
+    private StockMovement RecordMovement(
         StockMovementType type,
         int quantityChange,
-        string reason)
+        string reason,
+        Guid? referenceId)
     {
         if (string.IsNullOrWhiteSpace(reason))
         {
@@ -66,21 +129,32 @@ public sealed class InventoryStock
                 nameof(reason));
         }
 
+        string trimmedReason = Guard.RequiredText(
+            reason,
+            StockMovement.MaxReasonLength,
+            nameof(reason),
+            "Reason");
+
         int newQuantity = checked(QuantityOnHand + quantityChange);
 
         if (newQuantity < 0)
         {
-            throw new InvalidOperationException(
-                "This movement would make stock negative.");
+            throw new DomainException(
+                "This movement would make stock negative " +
+                $"({QuantityOnHand:N0} on hand).");
         }
 
         var movement = new StockMovement(
             ProductId,
             type,
             quantityChange,
-            reason.Trim());
+            newQuantity,
+            trimmedReason,
+            referenceId);
 
         _movements.Add(movement);
         QuantityOnHand = newQuantity;
+
+        return movement;
     }
 }

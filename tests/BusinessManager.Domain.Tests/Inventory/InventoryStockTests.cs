@@ -1,4 +1,5 @@
 using BusinessManager.Domain.Inventory;
+using BusinessManager.Domain.Common;
 using Xunit;
 
 namespace BusinessManager.Domain.Tests.Inventory;
@@ -90,7 +91,7 @@ public sealed class InventoryStockTests
         var stock = new InventoryStock(Guid.NewGuid());
         stock.Receive(5, "Opening stock");
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<DomainException>(() =>
             stock.Adjust(-6, "Damaged stock"));
 
         Assert.Equal(5, stock.QuantityOnHand);

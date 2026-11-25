@@ -6,6 +6,7 @@
     <Project Path="src/BusinessManager.Infrastructure/BusinessManager.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/BusinessManager.Desktop.Tests/BusinessManager.Desktop.Tests.csproj" />
     <Project Path="tests/BusinessManager.Domain.Tests/BusinessManager.Domain.Tests.csproj" />
     <Project Path="tests/BusinessManager.Infrastructure.Tests/BusinessManager.Infrastructure.Tests.csproj" />
   </Folder>
